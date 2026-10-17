@@ -1,0 +1,6 @@
+{
+  "name": "kinz-diagnostic",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" }
+}
