@@ -156,6 +156,20 @@ for (const origin of ['https://evil.com', 'http://abc.shopifypreview.com', 'http
   });
 }
 
+test('ALLOW_PREVIEW_ORIGINS=0 turns preview origins off', async () => {
+  process.env.ALLOW_PREVIEW_ORIGINS = '0';
+  try {
+    const res = makeRes();
+    await handler(makeReq({ method: 'OPTIONS', origin: 'https://abc123.shopifypreview.com' }), res);
+    assert.equal(res.statusCode, 403);
+    const store = makeRes();
+    await handler(makeReq({ method: 'OPTIONS', origin: 'https://kinzoils.com' }), store);
+    assert.equal(store.statusCode, 204);
+  } finally {
+    delete process.env.ALLOW_PREVIEW_ORIGINS;
+  }
+});
+
 test('GET is refused', async () => {
   const res = makeRes();
   await handler(makeReq({ method: 'GET' }), res);

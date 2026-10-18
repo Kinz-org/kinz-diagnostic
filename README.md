@@ -14,6 +14,7 @@ routine diagnostic on kinzoils.com (/pages/diagnostic).
 - `ANTHROPIC_API_KEY` (required, shared team variable, Sensitive) - key from the KINZ Claude Console, workspace "Boutique Kinz"
 - `KINZ_MODEL` (optional) - defaults to `claude-fable-5-1`
 - `ALLOWED_ORIGINS` (optional) - comma-separated list, defaults to the store domains
+- `ALLOW_PREVIEW_ORIGINS` (optional) - `0` refuses `*.shopifypreview.com` origins (every Shopify store's previews share that domain); on by default
 
 ## Tests
 

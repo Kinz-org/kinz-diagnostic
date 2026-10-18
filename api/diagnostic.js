@@ -10,7 +10,9 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
   'https://kinzoils.com,https://www.kinzoils.com,https://c2a74e-2.myshopify.com')
   .split(',').map((s) => s.trim()).filter(Boolean);
 // Share links of unpublished themes (https://<id>.shopifypreview.com) so the card also shows in previews.
+// Any Shopify store's previews live on that domain: set ALLOW_PREVIEW_ORIGINS=0 to turn this off after go-live.
 const PREVIEW_ORIGIN_RE = /^https:\/\/[a-z0-9-]+\.shopifypreview\.com$/;
+const allowPreviews = () => process.env.ALLOW_PREVIEW_ORIGINS !== '0';
 
 const LANGS = { fr: 'français', en: 'English', ar: 'العربية (arabe standard, ton chaleureux)', 'zh-TW': '繁體中文' };
 
@@ -106,7 +108,7 @@ export function parseAnswer(text, steps) {
 
 function cors(req, res) {
   const origin = req.headers.origin || '';
-  const ok = ALLOWED_ORIGINS.includes(origin) || PREVIEW_ORIGIN_RE.test(origin);
+  const ok = ALLOWED_ORIGINS.includes(origin) || (allowPreviews() && PREVIEW_ORIGIN_RE.test(origin));
   if (ok) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
