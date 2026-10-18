@@ -2,7 +2,7 @@
 // Run: npm test
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import handler, { validate, buildPrompt, parseAnswer } from '../api/diagnostic.js';
+import handler, { validate, buildPrompt, parseAnswer, clip, tidy } from '../api/diagnostic.js';
 
 const STEPS = [
   { handle: 'gel-nettoyant', name: 'Gel nettoyant', moment: 'Matin et soir' },
@@ -128,6 +128,50 @@ test('parseAnswer tolerates surrounding text and rejects garbage', () => {
   assert.equal(parseAnswer('pas de json', steps), null);
   assert.equal(parseAnswer('{"intro": oops}', steps), null);
   assert.equal(parseAnswer('{"intro":"","steps":[],"tip":"x"}', steps), null);
+});
+
+// clip() and tidy(): what the site shows
+
+// Real answer from the draft preview (18-10-2026): the old 300-character cut ended in "demandez con".
+const REAL_TIP = "Le matin, appliquez le sérum sur peau propre puis protégez votre peau du soleil pour soutenir l'action anti-taches. Le soir, chauffez deux à trois gouttes d'huile entre vos mains et massez doucement le visage. Si votre peau réagit facilement, testez chaque produit sur une petite zone et demandez conseil à votre pharmacien.";
+
+test('clip keeps short text and cuts long text at a sentence end', () => {
+  assert.equal(clip(REAL_TIP, 500), REAL_TIP);
+  const cut = clip(REAL_TIP, 300);
+  assert.ok(cut.endsWith('le visage.'), cut);
+  assert.ok(!cut.includes('demandez con'));
+  assert.equal(clip('مرحبا بك؟ هذا نص طويل جدا جدا', 20), 'مرحبا بك؟');
+  assert.equal(clip('這是第一句。這是第二句很長很長很長', 10), '這是第一句。');
+  assert.equal(clip('un texte sans aucune ponctuation qui continue encore', 30), 'un texte sans aucune\u2026');
+});
+
+test('tidy drops fields that break the claims rule and removes em dashes', () => {
+  for (const bad of ['Riche en rétinol.', 'Retinol-like.', 'Huile pressée à froid.', 'Cold-pressed oil.', 'Concentré à 15 % de vitamine C.',
+    'Certifiée Ecocert.', 'Récoltée à Kasserine.', 'غني بحمض الهيالورونيك.', 'يحتوي على ريتينول.', '含有玻尿酸。', '冷壓初榨。', 'نسبة 15٪.']) {
+    assert.equal(tidy(bad, 500), '', bad);
+  }
+  assert.equal(tidy('Un soin — doux.', 500), 'Un soin, doux.');
+  assert.equal(tidy('Entre 35–45 ans, la peau change.', 500), 'Entre 35–45 ans, la peau change.');
+  assert.equal(tidy('Formulé en Tunisie, il nourrit la peau.', 500), 'Formulé en Tunisie, il nourrit la peau.');
+});
+
+test('parseAnswer applies tidy to every field and hides an empty answer', () => {
+  const steps = validate(BODY).steps;
+  const out = parseAnswer(JSON.stringify({
+    intro: 'Votre routine — simple.',
+    steps: [{ handle: 'gel-nettoyant', why: 'Au rétinol.' }, { handle: 'serum-eclat-vitamine-c-alpha-arbutine', why: 'Ravive l’éclat.' }],
+    tip: 'Huile pressée à froid.',
+  }), steps);
+  assert.deepEqual(out, { intro: 'Votre routine, simple.', steps: [{ handle: 'serum-eclat-vitamine-c-alpha-arbutine', why: 'Ravive l’éclat.' }], tip: '' });
+  assert.equal(parseAnswer(JSON.stringify({ intro: 'À 20 % de vitamine C.', steps: [{ handle: 'gel-nettoyant', why: 'Ecocert.' }], tip: '' }), steps), null);
+});
+
+test('the usage text (how) reaches the prompt when the site sends it', () => {
+  const input = validate({ ...BODY, steps: [{ ...STEPS[0], how: 'Le soir, seule ou avant la crème.' }, STEPS[1]] });
+  const data = JSON.parse(buildPrompt(input).user);
+  assert.equal(data.routine_choisie_par_le_site[0].mode_d_emploi, 'Le soir, seule ou avant la crème.');
+  assert.equal(data.routine_choisie_par_le_site[1].mode_d_emploi, undefined);
+  assert.match(buildPrompt(input).system, /ne le contredis jamais/);
 });
 
 // CORS
